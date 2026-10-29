@@ -1,9 +1,13 @@
 #include <QGuiApplication>
-#include <QQmlApplicationEngine>
+#include <QQmlEngine>
+
+// qmltc is enabled for this target, so the QML document is compiled into a C++
+// class. Create the generated class directly instead of loading the QML at runtime.
+#include "Main_qml.h"
 
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
-    QQmlApplicationEngine engine;
-    engine.load(QUrl(QStringLiteral("qrc:/qt/qml/MyApp/Main.qml")));
-    return engine.rootObjects().isEmpty() ? -1 : 0;
+    QQmlEngine engine;
+    MyAppNs::Main window(&engine);
+    return window.isVisible() ? 0 : -1;
 }
