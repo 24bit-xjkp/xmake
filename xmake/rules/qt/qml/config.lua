@@ -22,6 +22,7 @@
 import("utils")
 import("cachegen")
 import("qmltc")
+import("aotstats")
 
 -- enable the jobgraph prepare implementation for the target
 --
@@ -53,7 +54,9 @@ function main(target)
     if setting.type_compiler then
         tools.qmltc = qmltc.get_tool(target)
     end
+    local aot = aotstats.get_aot(target, setting, tools.cachegen)
     target:data_set("qt.qml.tools", tools)
+    target:data_set("qt.qml.aot", aot)
     if tools.cachegen and tools.qmltc then
         _enable_jobgraph(target)
     end
