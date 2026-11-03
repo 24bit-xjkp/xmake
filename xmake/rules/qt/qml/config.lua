@@ -21,6 +21,27 @@
 -- imports
 import("utils")
 import("cachegen")
+import("qmltc")
+
+-- enable the jobgraph prepare implementation for the target
+--
+-- The rule only registers `on_preparecmd_file` by default. When both qmlcachegen and
+-- qmltc are needed, we attach `on_prepare_files` to the target rule, so that the two
+-- tools can run in parallel for the same file. The target keeps its own rule instance,
+-- other targets are not affected.
+local function _enable_jobgraph(target)
+    if target:data("qt.qml.jobgraph") then
+        return
+    end
+    local ruleinst = assert(target:rule("qt.qml"), "qt.qml: rule not found")
+    local cloned = ruleinst:clone()
+    cloned:set("prepare_files", function (target, jobgraph, sourcebatch, opt)
+        import("prepare_qml").prepare_jobgraph(target, jobgraph, sourcebatch, opt)
+    end)
+    cloned:extraconf_set("prepare_files", { jobgraph = true })
+    target:rule_add(cloned)
+    target:data_set("qt.qml.jobgraph", true)
+end
 
 -- find and check the tools needed by the module
 function main(target)
@@ -29,5 +50,11 @@ function main(target)
     if setting.cachegen then
         tools.cachegen = cachegen.get_tool(target, setting)
     end
+    if setting.type_compiler then
+        tools.qmltc = qmltc.get_tool(target)
+    end
     target:data_set("qt.qml.tools", tools)
+    if tools.cachegen and tools.qmltc then
+        _enable_jobgraph(target)
+    end
 end

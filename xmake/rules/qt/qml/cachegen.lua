@@ -19,8 +19,11 @@
 --
 
 -- imports
+import("core.base.option")
 import("core.base.semver")
+import("core.project.depend")
 import("utils")
+import("utils.progress", { alias = "progress_utils" })
 
 -- get the qmlcachegen tool and check its capabilities
 function get_tool(target, setting)
@@ -72,10 +75,14 @@ end
 --
 -- qmlcachegen reads the qrc files with `--resource`, so every output depends on
 -- them. Adding or removing a module file regenerates all outputs, while editing
--- one file only regenerates its output, matching Qt CMake's granularity.
+-- one file only regenerates its output, matching Qt CMake's granularity. With
+-- type_compiler, the generated qmldir is passed with `-i` and is also a dependency.
 function get_depfiles(setup, file)
     local depfiles = { file.absfile }
     table.join2(depfiles, setup.resources)
+    if setup.need_qmltc then
+        table.insert(depfiles, setup.qmltcpaths.qmldir)
+    end
     return depfiles
 end
 
@@ -90,6 +97,33 @@ function add_generate(batchcmds, setup, file, opt)
     batchcmds:add_depvalues(setup.tools.cachegen.program, args)
     batchcmds:set_depmtime(os.mtime(cppfile))
     batchcmds:set_depcache(setup.target:dependfile(cppfile))
+    return cppfile
+end
+
+-- generate the c++ source of the given qml/js/mjs file directly
+--
+-- This is used by the jobgraph mode, where no batchcmds is created for every file.
+function generate(setup, file, opt)
+    local target = setup.target
+    local cppfile = get_output(target, file.sourcefile)
+    local args = get_args(setup, file)
+    local dryrun = option.get("dry-run")
+    depend.on_changed(function ()
+        progress_utils.show(opt.progress, "${color.build.object}generating.qt.qmlcachegen %s", file.sourcefile)
+        if dryrun then
+            vprint(os.args(table.join(setup.tools.cachegen.program, args)))
+            return
+        end
+        os.mkdir(path.directory(cppfile))
+        os.vrunv(setup.tools.cachegen.program, args)
+    end, {
+        dependfile = target:dependfile(cppfile),
+        files      = get_depfiles(setup, file),
+        values     = { setup.tools.cachegen.program, args },
+        lastmtime  = os.mtime(cppfile),
+        changed    = target:is_rebuilt(),
+        dryrun     = dryrun
+    })
     return cppfile
 end
 
