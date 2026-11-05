@@ -30,7 +30,7 @@ import("aotstats")
 -- qmltc are needed, we attach `on_prepare_files` to the target rule, so that the two
 -- tools can run in parallel for the same file. The target keeps its own rule instance,
 -- other targets are not affected.
-local function _enable_jobgraph(target)
+function _enable_jobgraph(target)
     if target:data("qt.qml.jobgraph") then
         return
     end

@@ -95,7 +95,19 @@ function get_alias(target, sourcefile)
     return alias, absfile
 end
 
-function get_mangled_name(target, sourcefile)
+-- get the autogen directory of the given generator
+function get_autogen_dir(target, name)
+    return path.join(path.absolute(target:autogendir(), os.projectdir()), "rules", "qt", name)
+end
+
+-- get the generated file of the given source file, e.g.
+-- <autogendir>/rules/qt/qmlcachegen/src/Main.qml.cpp
+--
+-- The source file name is kept as-is, so the generated header of `Main.qml` is
+-- `Main.qml.h`. `opt.flat` flattens the source path and appends a hash to the
+-- file name, qmltc includes the generated headers by their file name only.
+function get_autogen_file(target, dir, sourcefile, extension, opt)
+    opt = opt or {}
     local absfile = path.absolute(sourcefile, os.projectdir())
     local scriptdir = target:scriptdir()
     ---@type string
@@ -105,18 +117,10 @@ function get_mangled_name(target, sourcefile)
     else
         name = hash.strhash32(absfile) .. "_" .. path.filename(absfile)
     end
-    return name
-end
-
--- get the autogen directory of the given generator
-function get_autogen_dir(target, name)
-    return path.join(path.absolute(target:autogendir(), os.projectdir()), "rules", "qt", name)
-end
-
--- get the generated file of the given source file, e.g.
--- <autogendir>/rules/qt/qmlcachegen/src/Main_qml.cpp
-function get_autogen_file(target, dir, sourcefile, extension)
-    return path.join(get_autogen_dir(target, dir), get_mangled_name(target, sourcefile) .. extension)
+    if opt.flat and name:find("/", 1, true) then
+        name = name:gsub("/", "_") .. "_" .. hash.strhash32(name)
+    end
+    return path.join(get_autogen_dir(target, dir), name .. extension)
 end
 
 -- get the module files in a stable order
@@ -133,9 +137,12 @@ end
 -- get the generated files and directories of the QML module
 function get_paths(target)
     local gendir = get_autogen_dir(target, "qml")
+    -- use the target fullname in the qrc file names, otherwise the rcc generated
+    -- symbols collide when one executable links multiple QML module targets
+    local name = hash.strhash32(target:fullname())
     return {
-        qrcfile     = path.join(gendir, "qml_module.qrc"),
-        resourceqrc = path.join(gendir, "qml_resource.qrc")
+        qrcfile     = path.join(gendir, "qml_module_" .. name .. ".qrc"),
+        resourceqrc = path.join(gendir, "qml_resource_" .. name .. ".qrc")
     }
 end
 

@@ -8,7 +8,7 @@
 
 ## 0. 关键修订与决策（最终版）
 
-> 本实现经历十七轮反馈。§0.1（第二轮）、§0.2（第三轮，只覆盖 qrc 渲染）、§0.4（第四轮）、§0.5（第五轮）、§0.6（第六轮）、§0.7（第七轮）、§0.8（第八轮）、§0.9（第九轮）、§0.10（第十轮）、§0.11（第十一轮）、§0.12（第十二轮）、§0.13（第十三轮）、§0.14（第十四轮）、§0.15（第十五轮）、§0.16（第十六轮）与 §0.17（第十七轮，当前）是**当前实现**的最终决策；§3–§13 保留初版设计说明，与它们冲突处以 §0.1、§0.2、§0.4、§0.5、§0.6、§0.7、§0.8、§0.9、§0.10、§0.11、§0.12、§0.13、§0.14、§0.15、§0.16、§0.17 为准。
+> 本实现经历十九轮反馈。§0.1（第二轮）、§0.2（第三轮，只覆盖 qrc 渲染）、§0.4（第四轮）、§0.5（第五轮）、§0.6（第六轮）、§0.7（第七轮）、§0.8（第八轮）、§0.9（第九轮）、§0.10（第十轮）、§0.11（第十一轮）、§0.12（第十二轮）、§0.13（第十三轮）、§0.14（第十四轮）、§0.15（第十五轮）、§0.16（第十六轮）、§0.17（第十七轮）、§0.18（第十八轮）与 §0.19（第十九轮，当前）是**当前实现**的最终决策；§3–§13 保留初版设计说明，与它们冲突处以 §0.1、§0.2、§0.4、§0.5、§0.6、§0.7、§0.8、§0.9、§0.10、§0.11、§0.12、§0.13、§0.14、§0.15、§0.16、§0.17、§0.18、§0.19 为准。
 
 ### 0.1 第二轮：实现后的优化（qrc 渲染已由 §0.2 更新）
 
@@ -88,7 +88,7 @@
 
 | # | 要求 | 落实 |
 |---|------|------|
-| 1 | 工作区中开启 qmltc 的测试用例不再用 `engine.load()` 加载 QML，而是直接创建 qmltc 生成的 C++ 对象 | `tests/projects/qt/qml_module_type_compiler/main.cpp`：包含 qmltc 生成的头文件 `Main_qml.h`，在 `QQmlEngine` 就绪后直接构造 `MyAppNs::Main window(&engine)`，以 `window.isVisible()` 作为运行验收；删除 `<QQmlApplicationEngine>` 与 `engine.load(QUrl("qrc:/qt/qml/MyApp/Main.qml"))` |
+| 1 | 工作区中开启 qmltc 的测试用例不再用 `engine.load()` 加载 QML，而是直接创建 qmltc 生成的 C++ 对象 | `tests/projects/qt/qml_module_type_compiler/main.cpp`：包含 qmltc 生成的头文件 `Main.qml.h`（§0.19 起保留源文件名），在 `QQmlEngine` 就绪后直接构造 `MyAppNs::Main window(&engine)`，以 `window.isVisible()` 作为运行验收；删除 `<QQmlApplicationEngine>` 与 `engine.load(QUrl("qrc:/qt/qml/MyApp/Main.qml"))` |
 
 要点：
 
@@ -276,7 +276,7 @@ build:                      c++.build 编译生成的 cpp；qt.qrc 编译 qrc；
 > - `qmltc.lua`：`get_tool()`、`get_qmldir_version()`、`get_outputs()`、`get_paths()`、`write_files()`、`add_generate()`、`get_generated_files()`。
 > - `aotstats.lua`：`get_aot()`、`get_paths()`、`add_report()`。
 > - `prepare_qml.lua`：`_get_setup()`、`_get_depfiles()`、`_add_*_job()`、`before_prepare()`、`on_prepare()`、`after_prepare()`（§0.15 起不再有 `_scan_file()`）。
-> - `utils.lua`：`get_setting()`、`get_alias()`、`get_mangled_name()`、`find_sdk_tool()`、`has_tool_option()`、`add_import_args()`、`get_paths()`（QML 模块 qrc）；`get_needs()` 已在 §0.17 删除。
+> - `utils.lua`：`get_setting()`、`get_alias()`、`get_autogen_file()`/`get_autogen_dir()`、`find_sdk_tool()`、`has_tool_option()`、`add_import_args()`、`get_paths()`（QML 模块 qrc）；`get_needs()` 已在 §0.17 删除，`get_mangled_name()` 已在 §0.18 合并进 `get_autogen_file()`。
 
 
 ### 0.15 第十五轮：on_config 探测工具、字典化模块文件、去掉 importscanner
@@ -353,6 +353,60 @@ build:                      c++.build 编译生成的 cpp；qt.qrc 编译 qrc；
 - 六个 QML 工程干净构建并运行成功。
 - `cachegen=false` 的工程不再探测 qmlcachegen；`type_compiler=false` 的工程不探测 qmltc。
 - `aotstats.get_aot()` 调用点和参数已同步修改，AOT 报告生成/无改动跳过正常。
+
+---
+
+### 0.18 第十八轮：代码审查修正与 CMake 增量粒度对齐
+
+| # | 要求 | 落实 |
+|---|------|------|
+| 1 | 以 `_` 开头的私有函数不需要再写 `local` | `aotstats.lua`、`config.lua`、`prepare_qml.lua`、`qmltc.lua`、`qrc.lua`、`utils.lua` 中的 `local function _*` 全部改为 `function _*`；`qrc.lua` 的 `generate_qrc()` 一并改为 `_generate_qrc()`，统一按模块私有函数处理 |
+| 2 | load 阶段拒绝 `{cachegen = false, discard = true}` | 已在 qmlcachegen 的后续提交中加入 `load.lua` 断言：没有 qmlcachegen 时 QML 源既不会被编译也不会被打包，`discard` 会让模块丢失全部 QML 内容；该组合直接在 `on_load` 报错 |
+| 3 | 判断 `get_mangled_name()` 是否必要，能删就删 | 删除 `utils.get_mangled_name()`，把路径/文件名处理合并进 `utils.get_autogen_file(target, dir, sourcefile, extension, opt)`；`opt.flat` 负责 qmltc 的展平+哈希命名。`qmltc.get_outputs()` 直接调用该函数，删除 `_get_name()` |
+| 4 | 多个 QML 模块链接到同一可执行文件时 qrc 符号重复 | `utils.get_paths()` 的 qrc 文件名追加 `hash.strhash32(target:fullname())`，例如 `qml_module_<hash>.qrc`、`qml_resource_<hash>.qrc`；rcc 生成的 `qInitResources_*` 符号随文件名区分 |
+| 5 | `find_sdk_tool()` 的 4 个 SDK 目录可能为 nil | 已在更早的 fix 提交中改为逐项检查后再插入，避免 Lua 表中间的 nil 截断 `ipairs`，也避免把 nil 传给 `find_tool`；host 目录仍然排在 target 目录之前 |
+| 6 | 与 Qt CMake 的 QML 增量编译粒度对齐 | Qt CMake 的每个 qmlcachegen 输出都依赖自身源文件、模块 qrc、qmldir（以及 qmltypes），qmltc 还依赖 file map/qrc；因此**修改一个文件内容只重建该文件，增删模块文件会重建整个模块的生成物**。qmlcachegen 侧已在 qmlcachegen 的后续提交中把 `setup.resources`（模块 qrc、资源 qrc）加入 `get_depfiles()`；本轮给 `qmltc.get_depfiles()` 也加入 `setup.resources`，和已有的 qmldir/file map 一起实现相同粒度 |
+
+要点：
+
+- `get_autogen_file()` 的默认命名保留源目录和源文件名（§0.19 起不再替换 `.`）；`flat = true` 时仅对含子目录的路径展平并追加哈希，根目录文件保持 `Main.qml.h` 这类名字。
+- qmlcachegen 本来就用 `--resource` 读取模块 qrc，但之前 depfiles 没有包含它们；补上后，新增/删除 `.qml/.js/.mjs` 或资源文件会重写 qrc，从而让所有 qmlcachegen 输出重新生成。仅修改文件内容时 qrc 不重写，仍只重生成该文件，和 CMake 的粒度一致。
+- qmltc 同样通过 `--resource` 读取 qrc；`get_depfiles()` 加入 `setup.resources` 后，qrc 变化会重建全部 qmltc 输出，与 CMake 的 qmltc 依赖列表一致。
+- qrc 文件名带 target fullname 哈希只影响生成文件/符号名，不影响资源前缀、alias 或运行时 URL。
+- `find_sdk_tool()` 的目录过滤仍会拒绝 PATH 回退找到的其它 Qt SDK 工具。
+
+验证：
+
+- 六个 QML 工程干净构建并运行成功；`qml_module`、`qml_module_type_compiler` 的无改动构建通过。
+- `qml_module`：只修改 `Main.qml` 时只重新生成 `Main.qml` 的 cachegen；新增/删除 `Added.qml` 时全部 cachegen 输出重新生成，恢复后无改动构建通过。
+- `qml_module_type_compiler`：新增/删除 `Added.qml` 时全部 cachegen/qmltc 输出重新生成，运行通过。
+- 两个静态 QML 模块（`mod_a`、`mod_b`）链接到同一个可执行文件，构建/运行成功；`nm` 确认 `qInitResources_qml_module_<hash>` 符号不同。
+- `cachegen=false + discard=true` 的临时工程在 `xmake f` 阶段报出新增断言。
+
+---
+
+### 0.19 第十九轮：SDK 查找、import 路径与生成文件名
+
+| # | 要求 | 落实 |
+|---|------|------|
+| 1 | 保留源文件名（原 “Keep source file names” 修复） | 不再把 `Main.qml` 变成 `Main_qml`：qmlcachegen 输出 `Main.qml.cpp`，qmltc 输出 `Main.qml.h`；qmltc 测试工程包含 `Main.qml.h` |
+| 2 | `find_sdk_tool()` 过滤 nil SDK 目录 | `dirs` 逐项检查后再插入，host 目录仍然优先，避免 nil 截断 `ipairs` |
+| 3 | 私有函数去掉冗余 `local` | 现有模块的 `local function _*` 改为 `function _*`；`generate_qrc()` 改为 `_generate_qrc()`；qmltc/aotstats 新增文件也直接使用模块函数 |
+| 4 | `find_program` 缓存不包含 `paths` | `find_sdk_tool()` 给 `find_program` 传入由 SDK 目录哈希生成的 `cachekey`，切换 SDK 时不会复用另一个 SDK 的缓存程序 |
+| 5 | 相对 import 路径基准错误 | `utils.get_setting()` 用 `target:scriptdir()` 把 `qt.qml.import` 转为绝对路径，`sub/xmake.lua` 中的 `{import = "imports"}` 会解析为 `sub/imports`，不再相对工程根目录 |
+
+要点：
+
+- qmltc 的 file map alias 和生成头文件中的跨组件包含使用源文件名，例如 `MyButton.qml.h`。
+- 子目录中的 QML 仍会得到展平+哈希的 qmltc 输出名，因为 qmltc 用文件名包含其它组件的头文件，必须避免不同目录下的同名文件冲突。
+- `find_sdk_tool()` 的 `cachekey` 只由 SDK 目录和工具名决定，不使用 `force`，保留正常探测缓存。
+- `qt.qml.import` 的相对路径按声明 target 的 `xmake.lua` 所在目录解析，和 xmake 其它路径属性的语义一致。
+
+验证：
+
+- 六个 QML 工程干净构建并运行成功。
+- `qml_module` 生成 `Main.qml.cpp`，`qml_module_type_compiler` 生成 `Main.qml.h` 并运行通过。
+- 两个 SDK 目录切换时 `find_sdk_tool()` 不会复用另一个 SDK 的缓存；相对 import 的临时 `sub/xmake.lua` 工程能正确传入绝对 `-I` 路径。
 
 ---
 
@@ -739,7 +793,7 @@ rule("qt.qml.resource")
   <abs qml/js/mjs file>
 ```
 
-- `<mangled>`：保留相对目录结构、扩展名点转下划线（`src/Main.qml` → `src/Main_qml.cpp`）；目录外文件用 `<hash32>_<basename>.cpp`。
+- `<name>`：保留相对目录结构和源文件名（`src/Main.qml` → `src/Main.qml.cpp`）；目录外文件用 `<hash32>_<basename>.cpp`。§0.19 起不再把扩展名的 `.` 换成 `_`。
 - 输出目录：`target:autogendir()/rules/qt/qmlcachegen/`。
 - 每个文件独立记录增量信息：
   - **depfiles**：该 QML/JS 文件自身（`type_compiler` 下再加模块 qmldir 文件）；不再包含 import 目标（§5.12）；
@@ -867,7 +921,7 @@ tests/projects/qt/
 xmake.lua
 main.cpp              # QGuiApplication + QQmlApplicationEngine，load qrc:/qt/qml/MyApp/Main.qml，
                       # rootObjects 为空则返回非 0（用于 xmake run 验收）
-                      # qmltc 工程（qml_module_type_compiler）例外：包含生成的 Main_qml.h，
+                      # qmltc 工程（qml_module_type_compiler）例外：包含生成的 Main.qml.h，
                       # 直接构造 MyAppNs::Main，不使用 engine.load，见 §0.5
 Main.qml              # import QtQuick + typed JS；type_compiler 工程额外 import MyApp，以验证同模块类型
 MyButton.qml          # 跨文件组件（type_compiler 工程用它验证 qmltc 类型解析，见 §0.7）
@@ -1000,7 +1054,7 @@ target("qml_module_rule")
 
 第五轮优化（当前实现）：
 
-18. qmltc 测试工程改为直接创建生成的 C++ 对象：`tests/projects/qt/qml_module_type_compiler/main.cpp` 包含 `Main_qml.h` 并构造 `MyAppNs::Main`，不再使用 `engine.load`；按 §8 重跑干净构建与运行回归。
+18. qmltc 测试工程改为直接创建生成的 C++ 对象：`tests/projects/qt/qml_module_type_compiler/main.cpp` 包含 `Main.qml.h` 并构造 `MyAppNs::Main`，不再使用 `engine.load`；按 §8 重跑干净构建与运行回归。
 
 ---
 
@@ -1073,6 +1127,8 @@ target("qml_module_rule")
 | 32. 第十五轮：on_config 工具断言、`setup.qmls` 字典、去掉 filemap/_find_file、移除 qmlimportscanner 和目录 import 依赖 | §0.15 |
 | 33. 第十六轮：setup 缓存、单工具走 `on_preparecmd_file`、双工具才附加 jobgraph、jobgraph 直接执行、AOT 报告按存在的 sidecar 聚合 | §0.16 |
 | 34. 第十七轮：去掉 `get_needs()`，工具选择直接看 settings，即使没有对应源文件 | §0.17 |
+| 35. 第十八轮：私有函数去掉 `local`、拒绝 `discard + cachegen=false`、合并 `get_mangled_name()`、qrc 文件名加 target 哈希、按 CMake 对齐 QML 增量粒度 | §0.18 |
+| 36. 第十九轮：保留源文件名、过滤 nil SDK 目录、find_program 使用 SDK cachekey、相对 import 路径按 target scriptdir 解析 | §0.19 |
 
 ---
 

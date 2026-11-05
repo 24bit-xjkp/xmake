@@ -39,24 +39,14 @@ function get_qmldir_version(setting)
     return string.format("%d.%d", version:major(), version:minor())
 end
 
--- get the flat generated file name, qmltc includes the generated headers by their
--- file name only
-function _get_name(target, sourcefile)
-    local name = utils.get_mangled_name(target, sourcefile)
-    if name:find("/", 1, true) then
-        -- the path separators are flattened, append a hash to keep the names unique,
-        -- e.g. a/b.qml and a_b.qml would collide without it
-        name = (name:gsub("/", "_")) .. "_" .. hash.strhash32(name)
-    end
-    return name
-end
-
 -- get the generated files of the given qml file
+--
+-- qmltc includes the generated headers by their file name only, so the paths are
+-- flattened and hashed to avoid collisions between different source directories.
 function get_outputs(setup, sourcefile)
-    local name = _get_name(setup.target, sourcefile)
     return {
-        header = path.join(setup.qmltcpaths.qmltcdir, name .. ".h"),
-        impl   = path.join(setup.qmltcpaths.qmltcdir, name .. ".cpp")
+        header = utils.get_autogen_file(setup.target, "qmltc", sourcefile, ".h", { flat = true }),
+        impl   = utils.get_autogen_file(setup.target, "qmltc", sourcefile, ".cpp", { flat = true })
     }
 end
 
@@ -153,7 +143,7 @@ function write_files(setup, is_rebuilt)
     for _, file in ipairs(utils.get_file_list(setup.qmls)) do
         if utils.is_qmltc_file(file.sourcefile) then
             table.insert(mapdata.entries, {
-                alias = _get_name(setup.target, file.sourcefile) .. ".h",
+                alias = path.filename(get_outputs(setup, file.sourcefile).header),
                 path  = file.absfile
             })
         end
@@ -189,10 +179,12 @@ end
 
 -- get the dependency files of the given qml file
 --
--- The file map and qmldir describe the types of the module, so they are inputs of
--- every qmltc invocation.
+-- The file map and qmldir describe the types of the module, and the qrc files are
+-- passed with `--resource`, so all of them are inputs of every qmltc invocation.
 function get_depfiles(setup, file)
-    return { file.absfile, setup.qmltcpaths.qmldir, setup.qmltcpaths.qmltcmap }
+    local depfiles = { file.absfile, setup.qmltcpaths.qmldir, setup.qmltcpaths.qmltcmap }
+    table.join2(depfiles, setup.resources)
+    return depfiles
 end
 
 -- get the last modification time of the qmltc outputs

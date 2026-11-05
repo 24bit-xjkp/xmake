@@ -125,7 +125,7 @@ function before_prepare(target, batchcmds, sourcebatch, opt)
 end
 
 -- get the job name of the given tool and source file
-local function _get_jobname(target, tool, sourcefile)
+function _get_jobname(target, tool, sourcefile)
     return target:fullname() .. "/rule/qt.qml/" .. tool .. "/" .. sourcefile
 end
 
@@ -133,7 +133,7 @@ end
 --
 -- The setup is read when the job runs, because the jobgraph is built before the
 -- before_prepare job has created the cached setup.
-local function _add_job(target, jobgraph, tool, sourcefile, run)
+function _add_job(target, jobgraph, tool, sourcefile, run)
     jobgraph:add(_get_jobname(target, tool, sourcefile), function (_, _, jobopt)
         progress_utils.set_target(jobopt.progress, target)
         local setup = assert(target:data("qt.qml.setup"), "qt.qml: setup is not initialized")
